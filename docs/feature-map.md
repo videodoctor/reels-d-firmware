@@ -24,11 +24,27 @@ Reference: 0dan0 firmware v7.7.1 (Type C)
 
 | Feature | C Address | D Address | Method | Status | Notes |
 |---|---|---|---|---|---|
-| 1600×1200 encode resolution | `0x2bf908` | `0x2c0a6c` | OFFSET | ✅ WORKING | Stable in Phase 8 v3 |
+| 1600×1200 encode resolution | `0x2bf908` | `0x2c0a6c` | OFFSET | ✅ WORKING | Stable in Phase 8 v3. **See note below — may not be best target for D.** |
 | 1600×1200 preview resolution | `0x2bfe74` | `0x2c0fd8` | OFFSET | ✅ WORKING | Stable in Phase 8 v3 |
 | Disable 3DNR | TBD | TBD | PATCH | ⬜ NOT ATTEMPTED | Low priority |
 | Full range flag (MP4 metadata) | TBD | TBD | PATCH | ⬜ NOT ATTEMPTED | avcC atom fix |
-| Frame buffer memory layout | — | — | — | 🔬 INVESTIGATING | D sensor may have different buffer geometry |
+| Frame buffer memory layout | — | — | — | 🔬 INVESTIGATING | D sensor has different buffer geometry — IMEP1 buffer confirmed at 3,359,232 bytes (1728×1296 YUV) |
+
+> **⚠️ Resolution Note for Type D:** Unlike Types A/B/C, the Type D stock firmware already captures at **1728×1296** natively via the IMEP1 path (confirmed by buffer size math — exact match). Setting encode resolution to 1600×1200 is actually a **downgrade** from stock D behavior. The Phase 8 v3 baseline should be re-evaluated to output at 1728×1296 instead of 1600×1200. The real quality goal is finding a native 4:3 sensor mode to eliminate the ISP's vertical upscale (1076→1296). See `sensor-notes.md`.
+
+---
+
+## Sensor Resolution Investigation (D-Specific)
+
+| Feature | Address | Status | Notes |
+|---|---|---|---|
+| Sensor mode table | `0x80DBF448` | ✅ MAPPED | 7 modes, all 16:9 (1936×1076 down to 1792×996). No native 4:3 mode in table. |
+| Sensor init function | `0x80D971C0` | 🔬 INVESTIGATING | `Init_OS04D10` string confirmed. Need to follow in Ghidra to find I2C register tables. |
+| Mode config struct 1 | `0x802CCBB8` | 🔬 INVESTIGATING | Pointer from mode table header. Contains sensor register init sequence. |
+| Mode config struct 2 | `0x802CCB20` | 🔬 INVESTIGATING | Pointer from mode table header. UART read was attempted but session ended. |
+| ISP scaling table | `0x80E07090` | ✅ MAPPED | Progressive width values (1806→2116). This is ISP internal scaling, not sensor modes. |
+| Native 4:3 sensor mode | Unknown | 🔬 INVESTIGATING | OS04D10 is 4MP — likely has 4:3 mode but not exposed in current init. Goal: 1920×1440 or 2048×1536 true native. |
+| Output at stock 1728×1296 | IMEP1 path | ✅ CONFIRMED | Buffer size proves genuine native capture, not upscale. Should be baseline output target. |
 
 ---
 
