@@ -1,0 +1,22 @@
+# Firmware binaries — store locally, don't commit
+*.rbn
+*.bin
+*.BIN
+
+# Patch log (auto-generated, local only)
+patch-log.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
