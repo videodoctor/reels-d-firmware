@@ -22,15 +22,13 @@ Reference: 0dan0 firmware v7.7.1 (Type C)
 
 ## Core Resolution & Pipeline
 
-| Feature | C Address | D Address | Method | Status | Notes |
-|---|---|---|---|---|---|
-| 1600×1200 encode resolution | `0x2bf908` | `0x2c0a6c` | OFFSET | ✅ WORKING | Stable in Phase 8 v3. **See note below — may not be best target for D.** |
-| 1600×1200 preview resolution | `0x2bfe74` | `0x2c0fd8` | OFFSET | ✅ WORKING | Stable in Phase 8 v3 |
-| Disable 3DNR | TBD | TBD | PATCH | ⬜ NOT ATTEMPTED | Low priority |
-| Full range flag (MP4 metadata) | TBD | TBD | PATCH | ⬜ NOT ATTEMPTED | avcC atom fix |
-| Frame buffer memory layout | — | — | — | 🔬 INVESTIGATING | D sensor has different buffer geometry — IMEP1 buffer confirmed at 3,359,232 bytes (1728×1296 YUV) |
-
-> **⚠️ Resolution Note for Type D:** Unlike Types A/B/C, the Type D stock firmware already captures at **1728×1296** natively via the IMEP1 path (confirmed by buffer size math — exact match). Setting encode resolution to 1600×1200 is actually a **downgrade** from stock D behavior. The Phase 8 v3 baseline should be re-evaluated to output at 1728×1296 instead of 1600×1200. The real quality goal is finding a native 4:3 sensor mode to eliminate the ISP's vertical upscale (1076→1296). See `sensor-notes.md`.
+| Feature | File Offset (D) | Value | Status | Notes |
+|---|---|---|---|---|
+| Output resolution | — | — | ✅ LEAVE ALONE | Stock D natively captures and outputs 1728×1296. Do not patch. Patching to 1600×1200 is a downgrade. |
+| Framerate (18fps) | `0x1015e8` | `0x12` | ⚠️ IN SCRIPT, UNVALIDATED | Single byte patch. Exists in `patch_phase9.sh`. Not confirmed stable in real scanning sessions. |
+| Device type byte | `0x340000` | `0x04` | ✅ CONFIRMED | Required — tells firmware it's Type D. |
+| NVM base address | `0x340004` | `0x80E0ADA4` | ✅ CONFIRMED | Required for persistent settings features. |
+| NOP printf | `0x1d430` | `0x00000000` | ✅ CONFIRMED | 0dan0's first patch — disables a noisy print call. |
 
 ---
 
@@ -61,30 +59,30 @@ Reference: 0dan0 firmware v7.7.1 (Type C)
 
 ---
 
-## OSD (On-Screen Display)
+## OSD / C Code Injection
 
-| Feature | C Address | D Address | Method | Status | Notes |
-|---|---|---|---|---|---|
-| OSD injection point | `0x338f28` | TBD | INDEPENDENT | 🔬 INVESTIGATING | 0dan0's C extensions live at 0x338f28–0x33a190 in C; D equivalent not yet found |
-| Frame counter (Frm) | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | Requires OSD injection point first |
-| FPS display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | Requires OSD injection point first |
-| RGB histogram | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | Most complex OSD feature |
-| WB gains display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | |
-| EV display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | |
-| Qp level display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | |
-| ISO display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | |
-| Sensor readout resolution (preview) | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | v7.6 feature |
-| Window offset display | TBD | TBD | HOOK | ⬜ NOT ATTEMPTED | v7.6 feature |
+| Feature | File Offset (D) | Status | Notes |
+|---|---|---|---|
+| Injection region | `0x338f28` (`MANWB_OFFSET`) | ✅ CONFIRMED EXISTS | Same region as C. Free space confirmed. `patch_printf.sh` uses this. |
+| Printf patch in injected code | varies | ✅ CONFIRMED METHOD | Replace `0x0c020058` → `0x0c030318`. Automated in `patch_printf.sh`. |
+| AE hook point | `0x2b6a60` | ⚠️ IN SCRIPT, UNVALIDATED | Replaces modulus code region. In `patch_printf.sh` but not confirmed stable. |
+| WB hook point | `0x2b7e14` | ⚠️ IN SCRIPT, UNVALIDATED | In `patch_printf.sh` but not confirmed stable. |
+| RGB Histogram (hist module) | `0x338f28` + manwb size | ⚠️ FLICKERING | Rendered visually but with bad flicker. Root cause unknown. Not usable yet. |
+| Manual WB (manwb module) | `0x338f28` | ⚠️ UNVALIDATED | Injected alongside hist. No confirmed working validation. |
+| Frame counter | — | ⬜ NOT ATTEMPTED | Depends on stable injection pipeline first. |
+| FPS display | — | ⬜ NOT ATTEMPTED | Depends on stable injection pipeline first. |
+| EV display | — | ⬜ NOT ATTEMPTED | |
+| Qp display | — | ⬜ NOT ATTEMPTED | |
+| ISO display | — | ⬜ NOT ATTEMPTED | |
 
 ---
 
 ## Frame Rate Control
 
-| Feature | C Address | D Address | Method | Status | Notes |
-|---|---|---|---|---|---|
-| 18fps default | `0x1ef984` (patch: `0xF0D2`) | TBD | PATCH | ❌ BROKEN | Phase 9 — causes capture loop freeze on D. DO NOT RE-ATTEMPT without new analysis. See session note 2026-01-22. |
-| FPS selector (16/18/24) | TBD | TBD | HOOK | 🚫 BLOCKED | Blocked by 18fps default fix |
-| Capture timing register | Unknown | Unknown | INDEPENDENT | 🔬 INVESTIGATING | **Key unsolved problem.** D sensor likely uses different clock divider or exposure timing register. Must trace from FPS write in C firmware back through call chain, then find analogous sequence in D by function shape matching — not offset. |
+| Feature | File Offset (D) | Value | Status | Notes |
+|---|---|---|---|---|
+| 18fps default | `0x1015e8` | `0x12` | ⚠️ IN SCRIPT, UNVALIDATED | Single byte. In `patch_phase9.sh`. Mechanically different from C (which used 2-byte `0xF0D2` timing value). The earlier Phase 9 freeze may have been caused by wrong approach — this simpler patch has not been confirmed stable in real scanning. Needs a careful validation session. |
+| FPS selector (16/18/24) | — | — | 🚫 BLOCKED | Blocked pending validation of 18fps patch. |
 
 ---
 
@@ -122,17 +120,23 @@ Reference: 0dan0 firmware v7.7.1 (Type C)
 
 ## Priority Queue (Suggested Next Steps)
 
-1. 🔬 **Find OSD injection point in D** — unlocks the entire OSD feature set
-2. 🔬 **Resolve FPS/capture timing freeze** — the key unsolved structural problem
-3. ⬜ **Port fixed white balance** — quick win, low complexity, useful immediately
-4. ⬜ **Port motor stop on encoder crash** — safety feature, relatively self-contained
+1. 🔬 **Validate framerate patch in real capture** — single byte `0x12` at file offset `0x1015e8`. Exists in script but not confirmed stable in real-world scanning.
+2. 🔬 **Diagnose histogram flicker** — C code injection pipeline works mechanically, histogram renders, but flickers badly. Root cause unknown. This is the key unsolved quality problem.
+3. ⬜ **Port fixed white balance** — quick win, low complexity
+4. ⬜ **Port motor stop on encoder crash** — safety feature, self-contained
 5. ⬜ **Port auto stop (end-of-reel)** — useful for unattended scanning
 
 ---
 
-## Known D-Specific Constraints
+## Known D-Specific Facts & Constraints
 
-- **+0x1164 offset** is consistent across most functions but has exceptions — exceptions are where new sensor code lives
-- **Function entry hooks → motor runaway** — always hook inside functions, not at entry points
-- **Phase 9 (FPS) freeze** — root cause unknown; working hypothesis is different clock/timing register structure for new sensor
-- **OSD code space** — in C, 0dan0 used the region `0x338f28–0x33a190` (formerly dashcam audio code). The equivalent free region in D has not been identified.
+- **1728×1296 is stock D native** — do NOT patch resolution. Leave it alone. This is already better than modded C.
+- **Framerate patch for D is a single byte** — value `0x12` (decimal 18) at file offset `0x1015e8`. Simpler than C's 2-byte timing value approach.
+- **NVM base address for D:** `0x80E0ADA4` (written to file offset `0x340004`) — required for any feature using persistent settings.
+- **Device type byte:** `0x04` at file offset `0x340000`
+- **C code injection region `0x338f28` confirmed present in D** — `patch_printf.sh` uses this as `MANWB_OFFSET`. The free region exists.
+- **Printf must be patched in injected code** — replace `0x0c020058` (JAL libc printf) with `0x0c030318` (JAL firmware-internal print). Done automatically by `patch_printf.sh`.
+- **Function entry hooks → motor runaway** — always hook inside functions, not at entry points.
+- **AE hook at file offset `0x2b6a60`** — confirmed in script, replaces modulus code region.
+- **WB hook at file offset `0x2b7e14`** — confirmed in script.
+- **+0x1164 offset** is a useful starting hypothesis but verify every address in Ghidra before trusting it.

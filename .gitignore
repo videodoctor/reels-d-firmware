@@ -2,6 +2,12 @@
 *.rbn
 *.bin
 *.BIN
+*.bcl
+
+# Novatek proprietary tools — do not commit (license unclear)
+utils/ntkcalc
+utils/bfc4ntk
+utils/
 
 # Patch log (auto-generated, local only)
 patch-log.json
