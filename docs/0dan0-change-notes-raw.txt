@@ -1,0 +1,244 @@
+
+0x1079ec/fc/fc  - location of Shutdown JPG, now points to the first image (freeing up space of new code.)
+0x107afc/afc/b0c - location Developer info JPG
+0x124af0/af0/b00 - Size of the boot JPG
+0x124b10/b10/b20 - Size of the shutdown JPG
+
+0x13a2e0//2e0/2f0 - I'm hooking a function call to 0x013b450/50/60 that set up the input buffer address (either the read or write location)
+Hook code is at 0x339420
+
+1a9df8/df8/e08 - printf "Stop callback" - now hooking to the my stop handler.
+
+0x1a9fe8/fe8/ff8 - this used to be a call to print the last error message ("set 1sok to end file..") on an encoder crash, now it calls my shutdown code at 0x33a340. The shutdown code is super crude, sends 0xffs to 0xb0260000 - 0xb0267fff, this freaks the unit out enough to turn off the motors.  UPDATE:  A cleaner solution is to write some greater than 0x2b to 80ddc12c (type A) / 0x80ddc214 (Type B) / 0x80ddb6ac (Type C)  to shutdown the motors.
+
+0x1b804c - Used to be a jump to 0x1b3bbc, now it is a hooked call to 0x1fc420 (my rate control part 2), which still calls 0x1b3bbc. 
+0x1b813c - Used to print "[%d]stillBlock = %d" as a warning that bitrate might be too high, now it is a call to 0x1fc350(my rate control part 1). 
+
+0x1ef984-6 - Used to set 20fps, not 18fps. Sample rate for 54000 (new) vs 60000 (old).  24 fps will require more code, as the correct change is a 16-bit value, need to set 32 bit for 72000.  
+   Firmware B the Addresses are 0x1ef974-6   Done A & B
+0x1ef440 - ptr to New AvcC blob
+0x1efc1c - ptr to New AvcC blob
+
+
+0x239934 - zeroed out a jump to print and unneeded console message ("ERR:GxImg_MapToISEScaleMethod()")
+0x239980 - zeroed out a jump to print and unneeded console message ("WRN:GxImg_MapToISEScaleMethod() Not Support")
+Done A & B
+
+0x23fe00 - used to be a call to 0x241be4, now it is a hooked call to 0x1fc280 (sets and prints to initial Qp value), which still calls 0x241be4. 
+
+0x2a173c to 0x2a1758 - this mute the error message "CFA need to be R", saying the Bayer phase was wrong, and the color was bizarre. Instead this prevents a jump to calculate the offset, and directly sets $v0 to 0x200. I do not know why this works.
+
+0x2b7e20/e20/e30 - Use fix white balance (2 instead of 1), replaced auto white balance with hard coded RGB Gains.
+0x2b7e34/e34/e44 Red = 0x1c0
+0x2b7e38/e38/e48 Grn = 0x100
+0x2b7e3c/e3c/e4c Blu = 0x100
+
+0x2be8cc - Muted the error message "CA VIG Setting not ready" - my guess this is a lens shading error, as the FOV was changed and the resolution increased, it doesn't have the shading correction for this lens at that FOV (or the new lens). Lens vignetting is not a big issue (I see no issues.)
+
+0x2bf928 - removed a function call to 0x27aee4 and set the return $v0 to 0x0. Which would check and print "convert 2 sen id fail". Not sure why I needed this, might now be unnecessary. This change is harmless.
+
+0x2bf908-a84 this function was altered to create space for a jump to 0x1fb6b0 (New Preview Res), which computes the frame size for the large FOV, and prints out the size changes.
+corner:902 472 (initial size data)
+size:840 632
+corner:522 188 (output size data)
+size:1600 1200
+
+The current size calculations:
+new_width = (old_width-440)*4;
+new_height = ((new_width/2 + new_width/4)>>2)<<2; // 3/4 width and divisible by 4.
+new_x_offset = abs(old_x_offset + old_width/2 - new_width/2);
+new_y_offset = abs(old_y_offset + old_height/2 - new_height/2);
+
+0x2bfe74-98  replace error msg: "ERR:%s() error act size (%d %d) < crop Size(%d %d), with a jump to 0x1fbf10 (New Capture Res.) Does the same math as the preview, but with no print out. Calculation code is between 0x1fbf10 and 0x1fc000.
+
+0x2eab6c - I'm hooking a function call to 0x2ea95c that set up the input buffer address (either the read or write location)
+Hook code is between 0x1fc0f0 and 0x1fc190
+
+0x2eae08 - I'm hooking another function call to 0x2ea95c that set up the input buffer address (either the read or write location)
+Hook code is between 0x1fc040 and 0x1fc1b00.
+
+0x333f28-0x3376c0 Replaced boot JPG image
+0x3376c8-0x33ae70 Replaced shutdown JPG image
+
+0x3301c4 and 0xdb12b7 I changed the folder name from "Filescanner" to "Filescan5.5". I needed a way to easily compare and track firmware versions.
+
+0xdbd910-990 All the strings used for formatting messages.
+
+
+Suppress random errors:
+0x24c710/24b728/24b83c/24ce50  -  00da8790 “^RERR:%s() setFolderPath id error %d!\r\n" 0x24c940/278598  -  00db14d0	"^RERR:%s() IPL_SetDZoom fail (Current Mode = %d)\r\n"	0x278568  -  00db1504	"^RERR:%s() IPL_SetDZoom fail (cur:%d max:%d)\r\n" 
+0x22a840  -  00da3dc4	"^RERR:%s() This Handle is not created(%d)\r\n"
+0x01d438/0x01dc20  -  0001c004	  "^RERR:%s() Horizontal Scaling down ratio over 2!  \r\n"
+0x01d450/0x01dc38  -  0001c03c  	"^RERR:%s() Vertical Scaling down ratio over 2!  \r\n”
+0x1c6c0c  -  00d94a6c	"^RERR:%s() wnd not created\n\r"
+0x2c7ce8  -  00dbdd7c	"^RERR:%s() SIEclk = %d\r\n"
+0x30156c  -  00dcb5f8 	"^RERR:%s() ChgMode_AR0330 to %d...\r\n"
+0x301a34  -  00dcb688	"^RERR:%s() Chip version is 0x%04x\r\n”
+0x2fcb6c -  00dcad18 ERR:ramdsk_setParam() No Implement! uiEvt 1
+0x0eee64 - 000ee27c ERR:System_OnStrgInit_FWS() Init failed!
+0x276198 - 00db1258	"^RERR:%s() -E- Cmd fail %d\r\n"
+0x301b38 - 00dcb620 ERR:Init_AR0330() ^GOTPM v5
+0x2eb66c - 00dc64b8	"^RERR:%s() PLL6 selected but not enabled...\r\n"
+0x2b99a4 - 00dbd148	"^RERR:%s() ^G3DNR on..\r\n"
+0x2b8fd4 - 00dbd054	"^RERR:%s() ^GIPL_FCB_AlgWDR = %d..\r\n"
+0x2b966c - 00dbd114	"^RERR:%s() ^GWDR ON..\r\n"
+0x2b9644 - 00dbd12c	"^RERR:%s() ^GWDR OFF..\r\n"
+0x02ec84/2ec10/2f2f4 - 0002e9b4	"^RERR:%s() pwm_pwmEnable(), not opened yet!\r\n”
+0x02b4e94 - 00dbb834	"^RERR:%s() #Entered AF_Tsk\r\n"
+
+In Memory (I create)
+0x85bf0000 - the approximate number of seconds of encoding
+0x85bf0004 - the number of solid grey frames
+0x85bf0008 - current max luma
+0x85bf000c - current min luma
+0x85bf0010 - time of last exposure change
+0x85bf0014 - number of frames encoded
+0x85bf0018 - exposure gap frames
+0x85bf001C - Current Qp
+0x85bf0020 - RGB gains R
+0x85bf0024 - RGB gains G
+0x85bf0028 - RGB gains B
+0x85bf002C - Button read
+
+0x85bf0030 - width
+0x85bf0034 - height
+
+
+0x80e556b4 - ISO 50 to 1600  (0x32 to 0x640)
+0x80e556b8 - exposure time 230us to 32767 (0xe5 to 0x7fff (or more))
+
+In Memory (I've found)
+0x80f82158 - Luma (Y) average for 0 to 0xfff 
+0x80f8214c - Maybe a frame counter at 25Hz (frames since boot.)
+0x80deb17c - Maybe last Luma average 0 to 0xfff
+0xa56f1f60  - Current Qp level for the H264 encoder
+
+C - 0x80DFC54C -  processing resolution
+B - 0x80DFD0BC -  processing resolution
+
+FW 5.6
+
+Type A:
+0x80e56134 - ISO 50 to 1600  (0x32 to 0x640)
+0x80e56138 - exposure time 230us to 32767 (0xe5 to 0x7fff (or more))
+
+Type B:
+0x80e56224 - ISO 50 to 1600  (0x32 to 0x640)
+0x80e56228 - exposure time 230us to 32767 (0xe5 to 0x7fff (or more))
+
+Type C:
+0x80e556b4 - ISO 50 to 1600  (0x32 to 0x640)
+0x80e556b8 - exposure time 230us to 32767 (0xe5 to 0x7fff (or more))
+
+
+
+FW 5.7
+
+0x107b0c - This is the offset the Dnine JPG, which I shrank from 118KB to 37KB, to have mode coding space.
+0x26dffc-e003 - Disables to the 3DNR (multi-frame noise reduction) add a frames encoded counter at 0x85bf0014 
+0x26e3a4 - Zeroing to disable the message the say 3DNR is disabled (every frame.)
+0x2b68f8, 69fc, 6918 - Hooking the exiting Auto Exposure, jumping to my new AE function(s).
+  
+FW 5.8
+
+Normally the camera get the 'avcC' data from the compression engine, but as it is getting it wrong, I use the one ffmpeg created and placed that in the firmware at offset 0x33A440.  This is not new MIPS code, just a raw dump of what should be written to the MP4 header.
+
+The code was changed at offsets 0x1ec104, 0x1ef458/64 and 0x1efc2c/38, simple to point at the new `avcC` (0x33A440) rather then using the one generated (0x80e55854).
+
+
+FW 5.9
+
+_DAT_80ddb6ac  writing some greater than 2b stop the motors.  Recording continues.  Motor Stop on Encoder Crash x033a350
+
+
+Is FUN_0011a5d8() Stop?
+
+
+Audio LUT start B - 0xdfbdb0 
+Audio LUT start C - 0xdfb240 
+
+
+FW 6.5
+
+Unit B & C
+This is SetTime(Hour, Minute, Second, ??)
+   FUN_000692d4(uint param_1,uint param_2,uint param_3,undefined4 param_4)
+This is SetDate(Year, Month, Day, ??)
+   FUN_000693a0(uint param_1,uint param_2,uint param_3,undefined4 param_4)
+
+I think FUN_00068d04(&local_10); is get_DateTime()
+
+> smrec gt     
+time = 2022/1/1 12:1:47
+
+> smrec st 2025/7/12 13:24:24
+
+
+Active Settings Type A
+80DDC11C - Exposure 1-8 (+2.0 thru -2.0)
+80DDC120 - Sharpness 1-8 (+2.0 thru -2.0)
+80DDC124 - Tint 1-8 (+2.0 thru -2.0)
+
+Active Settings Type B 
+80DDC204 - Exposure 1-8 (+2.0 thru -2.0)
+80DDC208 - Sharpness 1-8 (+2.0 thru -2.0)
+80DDC20C - Tint 1-8 (+2.0 thru -2.0)
+
+Active Settings Type C 
+80DDB69C - Exposure 1-8 (+2.0 thru -2.0)
+80DDC2A0 - Sharpness 1-8 (+2.0 thru -2.0)
+80DDC2A4 - Tint 1-8 (+2.0 thru -2.0)
+
+
+Non-volatile Type A
+80E0B87C                                                            - Exposure 1-8 (+2.0 thru -2.0)
+80E0B790 - Sharpness 1-8 (+2.0 thru -2.0)
+80E0B794 - Tint 1-8 (+2.0 thru -2.0)
+NVM more free 80E0B7A0+
+
+Non-volatile Type B
+80E0B87C - Exposure 1-8 (+2.0 thru -2.0)
+80E0B880 - Sharpness 1-8 (+2.0 thru -2.0)
+80E0B884 - Tint 1-8 (+2.0 thru -2.0)
+NVM free 80E0B890-80E0B8fc  (likely 80E0B800- 8ff is NVM)
+
+Non-volatile Type C
+80E0AD0C - Exposure 1-8 (+2.0 thru -2.0)
+80E0AD10 - Sharpness 1-8 (+2.0 thru -2.0)
+80E0AD14 - Tint 1-8 (+2.0 thru -2.0)
+NVM free 80E0AD20-80E0AD8C 
+
+
+80e0b790
+
+Stride 
+76 - Settings logos
+180 - Sharpness (pg11)
+       - Exposure
+196 - Film Positiv
+
+212 - film strip image in menu
+212 - Playback + Play symbol
+220 - Frame Adjust
+
+
+236 - Negative Film
+
+
+Button mapping 
+0x80E8BFF8 (A)
+0x80E8C0E8 (B) 
+0x80E8B578 (C)
+Up - 0x1
+Down - 0x2
+Left - 0x4
+Right - 0x8
+Plus - 0x200
+Neg - 0x100
+
+
+Back - 0x20
+Okay - 0x800
+
+ROM location: 
+32cec8 - is where Tint -2 sets the saturation.  ffffff80 - 0%   0x0 - 100%, 0x58 ~ 150% saturation
